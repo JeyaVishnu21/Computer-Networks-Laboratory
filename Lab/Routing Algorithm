@@ -1,0 +1,327 @@
+#include <stdio.h>
+#include <stdlib.h>
+
+#define INF 999
+#define MAX_NODES 26
+
+int costMatrix[MAX_NODES][MAX_NODES];
+int numNodes;
+
+void printCurrentMatrix() {
+    printf("   ");
+    for (int j = 0; j < numNodes; j++) printf("%c   ", 'A' + j);
+    printf("\n");
+    for (int i = 0; i < numNodes; i++) {
+        printf("%c  ", 'A' + i);
+        for (int j = 0; j < numNodes; j++) {
+            if (costMatrix[i][j] == INF) printf("#   ");
+            else printf("%-4d", costMatrix[i][j]);
+        }
+        printf("\n");
+    }
+}
+
+void inputGraph() {
+    char token[10];
+    printf("\nEnter the number of nodes (Max %d): ", MAX_NODES);
+    scanf("%d", &numNodes);
+
+    printf("Enter the cost adjacency matrix (Use '#' for infinity/no direct link):\n");
+    printf("   ");
+    for (int i = 0; i < numNodes; i++) {
+        printf("%c  ", 'A' + i);
+    }
+    printf("\n");
+
+    for (int i = 0; i < numNodes; i++) {
+        printf("%c  ", 'A' + i);
+        for (int j = 0; j < numNodes; j++) {
+            scanf("%s", token);
+            if (token[0] == '#') {
+                costMatrix[i][j] = INF;
+            } else {
+                costMatrix[i][j] = atoi(token);
+            }
+            if (i == j) {
+                costMatrix[i][j] = 0;
+            }
+        }
+    }
+}
+
+void distanceVectorRouting() {
+    int distance[MAX_NODES][MAX_NODES];
+    int nextHop[MAX_NODES][MAX_NODES];
+
+    for (int i = 0; i < numNodes; i++) {
+        for (int j = 0; j < numNodes; j++) {
+            distance[i][j] = costMatrix[i][j];
+            if (costMatrix[i][j] != INF && i != j) {
+                nextHop[i][j] = j;
+            } else {
+                nextHop[i][j] = -1;
+            }
+        }
+    }
+
+    int count;
+    do {
+        count = 0;
+        for (int i = 0; i < numNodes; i++) {
+            for (int j = 0; j < numNodes; j++) {
+                for (int k = 0; k < numNodes; k++) {
+                    if (distance[i][k] + distance[k][j] < distance[i][j]) {
+                        distance[i][j] = distance[i][k] + distance[k][j];
+                        nextHop[i][j] = nextHop[i][k];
+                        count++;
+                    }
+                }
+            }
+        }
+    } while (count != 0);
+
+    printf("\n--- Distance Vector Routing Tables ---");
+    for (int i = 0; i < numNodes; i++) {
+        printf("\nRouting Table for Node %c:\n", 'A' + i);
+        printf("Destination\tDistance\tNext Hop\n");
+        for (int j = 0; j < numNodes; j++) {
+            if (i == j) continue;
+            if (distance[i][j] == INF) {
+                printf("%c\t\tINF\t\t-\n", 'A' + j);
+            } else {
+                printf("%c\t\t%d\t\t%c\n", 'A' + j, distance[i][j], 'A' + nextHop[i][j]);
+            }
+        }
+    }
+
+    printf("\n--- Final Distance Vector Summary Matrix ---\n   ");
+    for (int j = 0; j < numNodes; j++) printf("%c   ", 'A' + j);
+    printf("\n");
+    for (int i = 0; i < numNodes; i++) {
+        printf("%c  ", 'A' + i);
+        for (int j = 0; j < numNodes; j++) {
+            if (distance[i][j] == INF) printf("#   ");
+            else printf("%-4d", distance[i][j]);
+        }
+        printf("\n");
+    }
+}
+
+void dijkstra(int source) {
+    int dist[MAX_NODES];
+    int visited[MAX_NODES] = {0};
+    int parent[MAX_NODES];
+
+    for (int i = 0; i < numNodes; i++) {
+        dist[i] = costMatrix[source][i];
+        if (costMatrix[source][i] != INF && i != source) {
+            parent[i] = source;
+        } else {
+            parent[i] = -1;
+        }
+    }
+
+    dist[source] = 0;
+    visited[source] = 1;
+
+    for (int count = 0; count < numNodes - 1; count++) {
+        int minDist = INF;
+        int u = -1;
+
+        for (int v = 0; v < numNodes; v++) {
+            if (!visited[v] && dist[v] < minDist) {
+                minDist = dist[v];
+                u = v;
+            }
+        }
+
+        if (u == -1) break;
+
+        visited[u] = 1;
+
+        for (int v = 0; v < numNodes; v++) {
+            if (!visited[v] && costMatrix[u][v] != INF && dist[u] + costMatrix[u][v] < dist[v]) {
+                dist[v] = dist[u] + costMatrix[u][v];
+                parent[v] = u;
+            }
+        }
+    }
+
+    printf("\nRouting Table for Node %c:\n", 'A' + source);
+    printf("NODE\tCOST\tSHORTEST PATH\n");
+    for (int i = 0; i < numNodes; i++) {
+        if (i == source) continue;
+        printf("%c\t", 'A' + i);
+        if (dist[i] == INF) {
+            printf("INF\t-\n");
+        } else {
+            printf("%d\t%c", dist[i], 'A' + i);
+            int p = parent[i];
+            while (p != -1) {
+                printf(" <- %c", 'A' + p);
+                p = parent[p];
+            }
+            printf("\n");
+        }
+    }
+}
+
+void linkStateRouting() {
+    char ch;
+    printf("\nEnter the node to view its Link State Routing Table (e.g., A): ");
+    scanf(" %c", &ch);
+    int source = ch - 'A';
+
+    if (source < 0 || source >= numNodes) {
+        printf("Invalid node selection.\n");
+        return;
+    }
+
+    printf("\n--- Link State Routing (Dijkstra) ---");
+    dijkstra(source);
+}
+
+void updateLinkCost() {
+    char node1Char, node2Char;
+    char token[10];
+    int u, v, newCost;
+
+    printf("\nEnter node to modify (e.g., A): ");
+    scanf(" %c", &node1Char);
+    printf("Enter linked node to modify (e.g., B): ");
+    scanf(" %c", &node2Char);
+
+    u = node1Char - 'A';
+    v = node2Char - 'A';
+
+    if (u < 0 || u >= numNodes || v < 0 || v >= numNodes || u == v) {
+        printf("Invalid node selections.\n");
+        return;
+    }
+
+    printf("\n--- INITIAL TABLE ---\n");
+    printCurrentMatrix();
+
+    printf("\nPrevious cost between %c and %c: ", 'A' + u, 'A' + v);
+    if (costMatrix[u][v] == INF) printf("INF (No connection)\n");
+    else printf("%d\n", costMatrix[u][v]);
+
+    printf("Enter new link cost (Use '#' for INF, or '0' to break link completely): ");
+    scanf("%s", token);
+
+    if (token[0] == '#') {
+        newCost = INF;
+    } else {
+        newCost = atoi(token);
+        if (newCost == 0) {
+            newCost = INF;
+        }
+    }
+
+    costMatrix[u][v] = newCost;
+    costMatrix[v][u] = newCost; 
+    printf("Link successfully updated.\n");
+
+    printf("\n--- FINAL TABLE ---\n");
+    printCurrentMatrix();
+}
+
+void shortestPathQuery() {
+    char srcChar, destChar;
+    printf("\nEnter Source Node (e.g., A): ");
+    scanf(" %c", &srcChar);
+    printf("Enter Destination Node (e.g., C): ");
+    scanf(" %c", &destChar);
+
+    int src = srcChar - 'A';
+    int dest = destChar - 'A';
+
+    if (src < 0 || src >= numNodes || dest < 0 || dest >= numNodes) {
+        printf("Invalid node selections.\n");
+        return;
+    }
+
+    int dist[MAX_NODES];
+    int visited[MAX_NODES] = {0};
+    int parent[MAX_NODES];
+
+    for (int i = 0; i < numNodes; i++) {
+        dist[i] = costMatrix[src][i];
+        if (costMatrix[src][i] != INF && i != src) parent[i] = src;
+        else parent[i] = -1;
+    }
+    dist[src] = 0;
+    visited[src] = 1;
+
+    for (int count = 0; count < numNodes - 1; count++) {
+        int minDist = INF, u = -1;
+        for (int v = 0; v < numNodes; v++) {
+            if (!visited[v] && dist[v] < minDist) {
+                minDist = dist[v];
+                u = v;
+            }
+        }
+        if (u == -1) break;
+        visited[u] = 1;
+        for (int v = 0; v < numNodes; v++) {
+            if (!visited[v] && costMatrix[u][v] != INF && dist[u] + costMatrix[u][v] < dist[v]) {
+                dist[v] = dist[u] + costMatrix[u][v];
+                parent[v] = u;
+            }
+        }
+    }
+
+    if (dist[dest] == INF) {
+        printf("\nNo path exists between %c and %c. Cost: INF\n", srcChar, destChar);
+    } else {
+        printf("\nShortest Path: ");
+        int p = dest;
+        printf("%c", 'A' + p);
+        p = parent[p];
+        while (p != -1) {
+            printf(" <- %c", 'A' + p);
+            p = parent[p];
+        }
+        printf("\nTotal Cost: %d\n", dist[dest]);
+    }
+}
+
+int main() {
+    int choice;
+
+    printf("--- Routing Algorithm Simulation ---\n");
+    inputGraph();
+
+    while (1) {
+        printf("\n=================================");
+        printf("\nMENU:\n");
+        printf("1. Distance Vector Routing\n");
+        printf("2. Link State Routing\n");
+        printf("3. Update Link Cost / Topology Changes\n");
+        printf("4. Find Shortest Path Between Two Nodes\n");
+        printf("5. Exit\n");
+        printf("Enter your choice: ");
+        scanf("%d", &choice);
+
+        switch (choice) {
+            case 1:
+                distanceVectorRouting();
+                break;
+            case 2:
+                linkStateRouting();
+                break;
+            case 3:
+                updateLinkCost();
+                break;
+            case 4:
+                shortestPathQuery();
+                break;
+            case 5:
+                printf("Exiting program.\n");
+                exit(0);
+            default:
+                printf("Invalid choice! Please try again.\n");
+        }
+    }
+    return 0;
+}
