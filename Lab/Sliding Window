@@ -1,0 +1,235 @@
+#include <stdio.h>
+
+void printHeader(const char* protocolName)
+{
+    printf("\n==================================================================\n");
+    printf("  %s PROTOCOL SIMULATION", protocolName);
+    printf("\n==================================================================\n");
+}
+
+void printFooter(int totalTransmissions)
+{
+    printf("------------------------------------------------------------------\n");
+    printf("  RESULT: All frames delivered successfully.\n");
+    printf("  TOTAL TRANSMISSIONS: %d\n", totalTransmissions);
+    printf("==================================================================\n");
+}
+
+void stopAndWait(int n, int lost)
+{
+    int i = 1;
+    int transmissions = 0;
+
+    printHeader("STOP-AND-WAIT");
+
+    while (i <= n)
+    {
+        transmissions++;
+        printf("[TX  #%02d] -> Frame %-3d : Sending packet\n", transmissions, i);
+
+        if (i == lost)
+        {
+            printf("[ERR #%02d] -> Frame %-3d : LOST / DROPPED\n", transmissions, i);
+            printf("[WARN    ] -> Timeout detected. Acknowledgment expired.\n");
+
+            transmissions++;
+            printf("[TX  #%02d] -> Frame %-3d : Retransmitting packet\n", transmissions, i);
+            printf("[ACK #%02d] -> Frame %-3d : RECOVERED OK\n", transmissions, i);
+            lost = 0;
+        }
+        else
+        {
+            printf("[ACK #%02d] -> Frame %-3d : ACK RECEIVED\n", transmissions, i);
+        }
+        i++;
+    }
+
+    printFooter(transmissions);
+}
+
+void goBackN(int n, int window, int lost)
+{
+    int i = 1;
+    int transmissions = 0;
+
+    printHeader("GO-BACK-N");
+
+    while (i <= n)
+    {
+        int end = i + window - 1;
+        if (end > n) end = n;
+
+        int hit_loss_in_window = 0;
+
+        printf("\n>>> WINDOW STEP: Processing Frames %d to %d\n", i, end);
+        printf("------------------------------------------------------------------\n");
+
+        // Phase 1: Try sending window content
+        for (int k = i; k <= end; k++)
+        {
+            transmissions++;
+            printf("[TX  #%02d] -> Frame %-3d : Sending packet\n", transmissions, k);
+
+            if (k == lost)
+            {
+                printf("[ERR #%02d] -> Frame %-3d : LOST / DROPPED\n", transmissions, k);
+                hit_loss_in_window = 1;
+            }
+            else
+            {
+                if (hit_loss_in_window)
+                {
+                    printf("[DROP#%02d] -> Frame %-3d : DISCARDED (Out of order)\n", transmissions, k);
+                }
+                else
+                {
+                    printf("[SENT#%02d] -> Frame %-3d : Reached receiver buffer\n", transmissions, k);
+                }
+            }
+        }
+
+        // Phase 2: Feedback and recovery roll-back
+        if (lost >= i && lost <= end)
+        {
+            printf("[WARN    ] -> Frame %d missing. Rolling back window to base.\n", lost);
+
+            for (int k = lost; k <= end; k++)
+            {
+                transmissions++;
+                printf("[TX  #%02d] -> Frame %-3d : Retransmitting packet\n", transmissions, k);
+                if (k == lost) {
+                    printf("[ACK #%02d] -> Frame %-3d : RECOVERED OK\n", transmissions, k);
+                } else {
+                    printf("[SENT#%02d] -> Frame %-3d : Reached receiver buffer\n", transmissions, k);
+                }
+            }
+            i = end + 1;
+            lost = 0;
+        }
+        else
+        {
+            // Successful transmission acknowledgment
+            for (int k = i; k <= end; k++)
+            {
+                printf("[ACK     ] -> Frame %-3d : Acknowledged successfully\n", k);
+            }
+            i = end + 1;
+        }
+    }
+
+    printFooter(transmissions);
+}
+
+void selectiveRepeat(int n, int window, int lost)
+{
+    int i = 1;
+    int transmissions = 0;
+
+    printHeader("SELECTIVE REPEAT");
+
+    while (i <= n)
+    {
+        int end = i + window - 1;
+        if (end > n) end = n;
+
+        int loss_occurred_here = 0;
+
+        printf("\n>>> WINDOW STEP: Processing Frames %d to %d\n", i, end);
+        printf("------------------------------------------------------------------\n");
+
+        // Step 1: Send current batch
+        for (int k = i; k <= end; k++)
+        {
+            transmissions++;
+            printf("[TX  #%02d] -> Frame %-3d : Sending packet\n", transmissions, k);
+
+            if (k == lost)
+            {
+                printf("[ERR #%02d] -> Frame %-3d : LOST / DROPPED\n", transmissions, k);
+                loss_occurred_here = 1;
+            }
+            else
+            {
+                printf("[ACK #%02d] -> Frame %-3d : ACK RECEIVED\n", transmissions, k);
+            }
+        }
+
+        // Step 2: Selectively patch only the missing node
+        if (loss_occurred_here)
+        {
+            printf("[INFO    ] -> NACK received for Frame %d. Others held in memory.\n", lost);
+            transmissions++;
+            printf("[TX  #%02d] -> Frame %-3d : Selectively retransmitting\n", transmissions, lost);
+            printf("[ACK #%02d] -> Frame %-3d : RECOVERED OK\n", transmissions, lost);
+            lost = 0;
+        }
+
+        i = end + 1;
+    }
+
+    printFooter(transmissions);
+}
+
+int main()
+{
+    int choice;
+    int n, window, lost;
+
+    while (1)
+    {
+        printf("\n====================================\n");
+        printf(" SLIDING WINDOW PROTOCOL\n");
+        printf("====================================\n");
+        printf("1. Go-Back-N\n");
+        printf("2. Selective Repeat\n");
+        printf("3. Stop-and-Wait\n");
+        printf("4. Exit Program\n");
+        printf("====================================\n");
+        printf("Enter your choice: ");
+
+        if (scanf("%d", &choice) != 1)
+        {
+            printf("Invalid text input.\n");
+            return 1;
+        }
+
+        if (choice == 4)
+        {
+            printf("Exiting\n");
+            break;
+        }
+
+        if (choice < 1 || choice > 4)
+        {
+            printf("Invalid option selected.\n");
+            continue;
+        }
+
+        printf("Enter number of frames: ");
+        if (scanf("%d", &n) != 1) return 1;
+
+        if (choice != 3)
+        {
+            printf("Enter window size: ");
+            if (scanf("%d", &window) != 1) return 1;
+            if (window <= 0 || window > n)
+            {
+                printf("Error: Invalid window size\n");
+                continue;
+            }
+        }
+
+        printf("Enter frame number to be lost (0 for none): ");
+        if (scanf("%d", &lost) != 1) return 1;
+        if (lost < 0 || lost > n)
+        {
+            printf("Error: Invalid frame selection.\n");
+            continue;
+        }
+
+        if (choice == 1) goBackN(n, window, lost);
+        else if (choice == 2) selectiveRepeat(n, window, lost);
+        else if (choice == 3) stopAndWait(n, lost);
+    }
+    return 0;
+}
